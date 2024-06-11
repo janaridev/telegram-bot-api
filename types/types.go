@@ -25,3 +25,5 @@ type SendMessageResponse struct {
 		MessageID int `json:"message_id"`
 	} `json:"result"`
 }
+
+type TelegramApiMethod string

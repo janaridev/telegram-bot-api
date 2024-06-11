@@ -10,6 +10,13 @@ import (
 	"github.com/janaridev/telegram-bot-api/types"
 )
 
+const (
+	GetUpdates  types.TelegramApiMethod = "getUpdates"
+	SendMessage types.TelegramApiMethod = "sendMessage"
+
+	BaseUrl = "https://api.telegram.org/bot"
+)
+
 type BotAPI struct {
 	Token  string
 	client *http.Client
@@ -22,15 +29,14 @@ func NewBotAPI(token string) *BotAPI {
 	}
 }
 
-func (b *BotAPI) getAPIURL(method string) string {
-	return fmt.Sprintf("https://api.telegram.org/bot%s/%s", b.Token, method)
+func (b *BotAPI) getAPIURL(method types.TelegramApiMethod) string {
+	return fmt.Sprintf("%s%s/%s", BaseUrl, b.Token, method)
 }
 
 func (b *BotAPI) GetUpdates(offset, timeout int) ([]types.Update, error) {
-	apiURL := b.getAPIURL("getUpdates")
+	apiURL := b.getAPIURL(GetUpdates)
 	values := url.Values{}
 	values.Set("offset", fmt.Sprintf("%d", offset))
-	values.Set("timeout", fmt.Sprintf("%d", timeout))
 
 	resp, err := b.client.Get(apiURL + "?" + values.Encode())
 	if err != nil {
@@ -48,8 +54,32 @@ func (b *BotAPI) GetUpdates(offset, timeout int) ([]types.Update, error) {
 	return result.Result, nil
 }
 
+func (b *BotAPI) GetUpdatesChan(offset, timeout int) (chan types.Update, error) {
+	ch := make(chan types.Update)
+
+	go func() {
+		for {
+			updates, err := b.GetUpdates(offset, timeout)
+			if err != nil {
+				continue
+			}
+
+			for _, update := range updates {
+				ch <- update
+				if update.UpdateID >= offset {
+					offset = update.UpdateID + 1
+				}
+			}
+
+			time.Sleep(1 * time.Second)
+		}
+	}()
+
+	return ch, nil
+}
+
 func (b *BotAPI) SendMessage(chatID int, text string) (*types.SendMessageResponse, error) {
-	apiURL := b.getAPIURL("sendMessage")
+	apiURL := b.getAPIURL(SendMessage)
 	values := url.Values{}
 	values.Set("chat_id", fmt.Sprintf("%d", chatID))
 	values.Set("text", text)
